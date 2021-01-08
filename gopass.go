@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/scrypt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -68,8 +70,34 @@ func DeriveKey(password, salt []byte) ([]byte, []byte, error) {
 	}
 	return key, salt, nil
 }
+func onExit(servicesMap *map[string][]byte, masterPasswd []byte) {
 
-func populate(services *map[string][]byte) error {
+	var serviceBuff []byte
+	var passwdBuff []byte
+	for service, passwd := range *servicesMap {
+		serviceBuff = append(serviceBuff, []byte(service+"\n")...)
+		passwdBuff = append(passwdBuff, passwd...)
+		passwdBuff = append(passwdBuff, byte('\n'))
+	}
+	passData, err := Encrypt(masterPasswd, passwdBuff)
+	if err != nil {
+		panic(err)
+	}
+	serviceData, err := Encrypt(masterPasswd, serviceBuff)
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile("data/pass", passData, 0644)
+	if err != nil {
+		panic(err)
+	}
+	err = ioutil.WriteFile("data/services", serviceData, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+}
+func populate(servicesMap *map[string][]byte, masterPasswd []byte) error {
 	// proper file check
 	if _, err := os.Stat("data"); !os.IsNotExist(err) {
 		_, passErr := os.Stat("data/pass")
@@ -77,6 +105,31 @@ func populate(services *map[string][]byte) error {
 		if os.IsNotExist(passErr) || os.IsNotExist(serviceErr) {
 			return errors.New("init error")
 		}
+		data, err := ioutil.ReadFile("data/pass")
+		if err != nil {
+			panic(err)
+		}
+		data, err = Decrypt(masterPasswd, data)
+		if err != nil {
+			panic(err)
+		}
+		passwords := bytes.Split(data, []byte("\n"))
+		data, err = ioutil.ReadFile("data/services")
+		if err != nil {
+			panic(err)
+		}
+		data, err = Decrypt(masterPasswd, data)
+		if err != nil {
+			panic(err)
+		}
+		services := bytes.Split(data, []byte("\n"))
+		if len(passwords) != len(services) {
+			log.Fatal(errors.New("wtf?"))
+		}
+		for index, service := range services {
+			(*servicesMap)[string(service)] = passwords[index]
+		}
+
 		return nil
 	}
 
@@ -113,14 +166,16 @@ func readString(reader *bufio.Reader) string {
 
 func main() {
 	services := make(map[string][]byte)
-	//err := populate(&services)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Enter master text")
 	text := readString(reader)
 	masterPasswd := []byte(text)
+
+	err := populate(&services, masterPasswd)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer onExit(&services, masterPasswd)
 
 	for {
 		fmt.Println("Enter service name or 'exit' to exit")
