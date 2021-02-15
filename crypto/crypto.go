@@ -8,9 +8,8 @@ import (
 	"golang.org/x/crypto/scrypt"
 )
 
-// Encrypts data with the provided key
-func Encrypt(key, data []byte) ([]byte, error) {
-	key, salt, err := DeriveKey(key, nil)
+func encrypt(key, data []byte) ([]byte, error) {
+	key, salt, err := deriveKey(key, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -30,9 +29,9 @@ func Encrypt(key, data []byte) ([]byte, error) {
 	ciphertext = append(ciphertext, salt...)
 	return ciphertext, nil
 }
-func Decrypt(key, data []byte) ([]byte, error) {
+func decrypt(key, data []byte) ([]byte, error) {
 	salt, data := data[len(data)-32:], data[:len(data)-32]
-	key, _, err := DeriveKey(key, salt)
+	key, _, err := deriveKey(key, salt)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +50,7 @@ func Decrypt(key, data []byte) ([]byte, error) {
 	}
 	return plaintext, nil
 }
-func DeriveKey(password, salt []byte) ([]byte, []byte, error) {
+func deriveKey(password, salt []byte) ([]byte, []byte, error) {
 	if salt == nil {
 		salt = make([]byte, 32)
 		if _, err := rand.Read(salt); err != nil {
