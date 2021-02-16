@@ -23,6 +23,13 @@ func presentChoise(text, truthfullChoise string, reader *bufio.Reader) (string, 
 	return resp, strings.Compare(resp, truthfullChoise) == 0
 }
 
+func updatePassPrompt(serviceName string, reader *bufio.Reader, keych *gopasscrypto.Keychain) error {
+	fmt.Printf("Service: %s. Enter password: ", serviceName)
+	passwd := readString(reader)
+	keych.UpdatePass(serviceName, []byte(passwd))
+	return nil
+}
+
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Enter master password")
@@ -37,16 +44,23 @@ func main() {
 		if shouldExit {
 			break
 		}
-		servicePass, ok := keych.GetServicePass(serviceName)
+		ok := keych.HasPass(serviceName)
 		if ok {
-			fmt.Printf("%s: %s\n", serviceName, servicePass)
+			choise, _ := presentChoise("Please choose:\n1 Show password\n2 Change password", "", reader)
+			if strings.Compare(choise, "1") == 0 {
+				servicePass, _ := keych.GetServicePass(serviceName)
+				fmt.Printf("%s: %s\n", serviceName, servicePass)
+			} else if strings.Compare(choise, "2") == 0 {
+				updatePassPrompt(serviceName, reader, keych)
+			} else {
+				fmt.Printf("Stop joking around pls")
+			}
 			continue
+
 		}
 		_, createNew := presentChoise("Unknown service, create a new password? y/n", "y", reader)
 		if createNew {
-			fmt.Printf("Service: %s. Enter password: ", serviceName)
-			passwd := readString(reader)
-			keych.UpdatePass(serviceName, []byte(passwd))
+			updatePassPrompt(serviceName, reader, keych)
 		}
 		continue
 	}
